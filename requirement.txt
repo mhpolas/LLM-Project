@@ -1,0 +1,7 @@
+
+langchain-text-splitters
+langchain-chroma
+unstructured
+langchain-community
+langchain-openai
+langchain-core
