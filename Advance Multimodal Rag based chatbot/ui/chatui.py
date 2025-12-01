@@ -64,6 +64,7 @@ def _source_summaries(docs: List[Document], max_chars: int = 600) -> List[Dict[s
         meta = d.metadata or {}
         text = (d.page_content or "").strip()
         out.append({
+            "chunk_id": meta.get("chunk_id", None),
             "source": meta.get("source", "unknown"),
             "modality": meta.get("modality", "unknown"),
             "filetype": meta.get("filetype", ""),
@@ -74,15 +75,16 @@ def _source_summaries(docs: List[Document], max_chars: int = 600) -> List[Dict[s
 
 def _render_sources(summaries: List[Dict[str, Any]]):
     if not summaries:
+        st.markdown("_No sources returned for this answer._")
         return
-    with st.expander("📎 Sources used", expanded=False):
-        for i, s in enumerate(summaries, start=1):
-            label = f"{i}. {s['source']} · {s['modality']}"
-            if s.get("filetype"):
-                label += f" ({s['filetype']})"
-            st.markdown(f"**{label}**")
-            st.write(s["snippet"] or "*No preview available*")
-            st.markdown("---")
+
+    st.markdown("**📎 Evidence chunks:**")
+    for i, s in enumerate(summaries, start=1):
+        chunk_id = s.get("chunk_id") or f"{i}"
+        line = f"- `Chunk {chunk_id}` · **Source:** {s['source']} · {s['modality']}"
+        if s.get("filetype"):
+            line += f" ({s['filetype']})"
+        st.markdown(line)
 
 
 def _compute_collection_name(base_name: str, provider: str, openai_embed_model: str, hf_model: str) -> str:

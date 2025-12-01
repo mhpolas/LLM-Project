@@ -194,15 +194,19 @@ class RAGPipeline:
 
     def build(self, *, documents: List[Document]) -> None:
         """
-        Build the vector store and create a history-aware retrieval chain.
+        Build the vector store and create a (simple) retrieval chain.
+
+        For now we use the base retriever directly (no history-aware rewriting),
+        but we still feed chat_history into the answer prompt via
+        RunnableWithMessageHistory.
         """
         if not documents:
             raise ValueError("No documents provided to build the RAG pipeline.")
 
-        # Build Chroma store
+        # 1) Build Chroma store
         self.vs_manager.build_from_documents(documents)
 
-        # Base retriever
+        # 2) Base retriever
         base_retriever = self.vs_manager.get_retriever(
             k=self.k,
             search_type=self.search_type,
@@ -211,27 +215,19 @@ class RAGPipeline:
             metadata_filter=self.metadata_filter,
         )
 
-        # 1) History-aware retriever (rewrites follow-ups → standalone search query)
-        hist_retriever = create_history_aware_retriever(
-            llm=self.llm,
-            retriever=base_retriever,
-            prompt=self.rewrite_prompt,
-        )
-
-        # 2) Combine-docs (stuff) chain to answer with context + chat_history
+        # 3) Combine-docs (stuff) chain to answer with context + chat_history
         stuff_chain = create_stuff_documents_chain(
             llm=self.llm,
-            prompt=self.answer_prompt,
+            prompt=self.answer_prompt,    # uses {chat_history}, {context}, {input}
         )
 
-        # 3) Retrieval chain (history-aware retriever → answer chain)
+        # 4) Retrieval chain (no return_source_documents kw in this version)
         retrieval_chain = create_retrieval_chain(
-            retriever=hist_retriever,
+            retriever=base_retriever,
             combine_docs_chain=stuff_chain,
-            #return_source_documents=True,
         )
 
-        # 4) Add message history wrapper so we pass chat_history seamlessly each call
+        # 5) Wrap with RunnableWithMessageHistory so chat_history is injected automatically
         def _get_history(session_id: str) -> ChatMessageHistory:
             if session_id not in self._memory_store:
                 self._memory_store[session_id] = ChatMessageHistory()
@@ -240,17 +236,19 @@ class RAGPipeline:
         self._with_history = RunnableWithMessageHistory(
             retrieval_chain,
             _get_history,
-            input_messages_key="input",     # user question
+            input_messages_key="input",      # user question key
             history_messages_key="chat_history",
-            output_messages_key="answer",
+            output_messages_key="answer",    # retrieval_chain returns "answer"
         )
+
 
     # ---------------- Inference ----------------
 
+    
     def ask(self, question: str, *, session_id: str = "default") -> str:
         """
         Ask a question with chat memory (session_id). Returns an answer string.
-        Sources from the last call are available via get_last_sources().
+        Retrieved chunks (documents) are stored from the 'context' key.
         """
         if self._with_history is None:
             raise RuntimeError("Pipeline not built. Call .build(documents=...) first.")
@@ -259,14 +257,22 @@ class RAGPipeline:
             {"input": question},
             config={"configurable": {"session_id": session_id}},
         )
+
+        # Standard keys for create_retrieval_chain output
+        # {'input': ..., 'context': [Document...], 'answer': '...'}
         answer = result.get("answer", result.get("result", ""))
-        self._last_sources = result.get("source_documents", []) or []
+        context_docs = result.get("context", []) or []
+        self._last_sources = context_docs
+        print(f"[DEBUG] Retrieved {len(self._last_sources)} source documents")
+
         return answer
 
     def get_last_sources(self) -> List[Document]:
-        """Source documents used in the last call to ask()."""
+        """
+        Return the documents (chunks) used for the last answer.
+        Used by the UI to display chunk id, source, etc.
+        """
         return self._last_sources
-
     # ---------------- Utilities ----------------
 
     def reset_session(self, session_id: str = "default") -> None:

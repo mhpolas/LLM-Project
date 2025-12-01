@@ -10,6 +10,8 @@ Why this file exists:
 Important:
 - This does not replace 'streamlit run'; it simply shells out to it.
 - If you prefer, you can still run:  streamlit run ui/streamlit_app.py
+
+to run: python -m streamlit run ui\chatui.py
 """
 
 import os

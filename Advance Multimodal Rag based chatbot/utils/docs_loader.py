@@ -122,12 +122,32 @@ def load_documents_from_files(
     )
 
     chunked_docs: List[Document] = []
+    global_chunk_idx = 0  # optional: global counter across all docs
+
     for d in raw_docs:
         if not (d.page_content and d.page_content.strip()):
             continue
-        chunked_docs.extend(splitter.split_documents([d]))
+
+        chunks = splitter.split_documents([d])
+ 
+        for local_idx, c in enumerate(chunks):
+            # Keep existing metadata
+            meta = c.metadata or {}
+            source = meta.get("source", "unknown")
+
+            # Create a stable chunk id; you can choose global or per-doc
+            # Per-doc:
+            #   chunk_id = f"{source}_chunk_{local_idx}"
+            # Global across all docs:
+            chunk_id = f"chunk_{global_chunk_idx}"
+            global_chunk_idx += 1
+
+            meta["chunk_id"] = chunk_id
+            c.metadata = meta
+            chunked_docs.append(c)
 
     return chunked_docs
+
 
 
 # ------------------ Helpers: materialize inputs ------------------
