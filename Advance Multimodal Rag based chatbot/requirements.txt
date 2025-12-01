@@ -1,0 +1,29 @@
+# --- App / UI ---
+streamlit
+python-dotenv
+
+# --- LangChain core & integrations ---
+langchain
+langchain-core
+langchain-community
+langchain-openai
+
+
+# --- Vector store (Chroma) ---
+chromadb
+
+# --- Embeddings ---
+huggingface-hub
+sentence-transformers
+tiktoken
+
+# --- Document loaders / parsing ---
+unstructured
+unstructured[docx,pdf]
+pdfminer.six
+python-docx
+pypdf
+
+# --- OCR for images ---
+pytesseract
+pillow

@@ -1,0 +1,7 @@
+__pycache__/
+env/
+vector_store/
+.env
+testocr.py
+test_env.py
+Screenshot_1.jpg
